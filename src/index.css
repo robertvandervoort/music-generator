@@ -1,0 +1,248 @@
+:root {
+  --bg-dark: #0a0a0a;
+  --panel-bg: #141414;
+  --accent-amber: #ffb300;
+  --accent-cyan: #00e5ff;
+  --text-main: #ffffff;
+  --text-muted: #888888;
+  --knob-bg: #222;
+}
+
+body {
+  background-color: var(--bg-dark);
+  color: var(--text-main);
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  margin: 0;
+  padding: 20px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 100vh;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+.app-container {
+  width: 100%;
+  max-width: 1200px;
+  background-color: var(--panel-bg);
+  border-radius: 16px;
+  padding: 32px;
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.8), inset 0 1px 1px rgba(255, 255, 255, 0.05);
+  display: flex;
+  flex-direction: column;
+  gap: 32px;
+}
+
+h1, h2, h3 {
+  margin: 0;
+  font-weight: 600;
+  letter-spacing: -0.5px;
+}
+
+/* Header */
+.app-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 1px solid #333;
+  padding-bottom: 16px;
+}
+
+.global-controls {
+  display: flex;
+  gap: 24px;
+}
+
+/* Knob Styles */
+.knob-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  user-select: none;
+}
+
+.knob {
+  border-radius: 50%;
+  background: var(--knob-bg);
+  position: relative;
+  cursor: grab;
+  box-shadow: inset 0 2px 5px rgba(255,255,255,0.1), 0 4px 10px rgba(0,0,0,0.5);
+}
+
+.knob:active {
+  cursor: grabbing;
+}
+
+.knob-label {
+  font-size: 11px;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+.knob-value {
+  font-size: 12px;
+  color: var(--accent-amber);
+  font-variant-numeric: tabular-nums;
+}
+
+/* LED styles */
+.sequencer-panel {
+  background: #0f0f0f;
+  border: 1px solid #2a2a2a;
+  border-radius: 12px;
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.led-array {
+  display: flex;
+  gap: 12px;
+  justify-content: space-between;
+  width: 100%;
+}
+
+.led-wrapper {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+
+.led {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: #222;
+  border: 1px solid #111;
+  transition: all 0.05s ease;
+  box-shadow: inset 0 2px 4px rgba(0,0,0,0.5);
+}
+
+.led.active {
+  background: var(--accent-amber);
+  box-shadow: inset 0 0 2px rgba(255,255,255,0.5), 0 0 10px var(--accent-amber), 0 0 20px rgba(255,179,0,0.4);
+  border-color: #ffe082;
+}
+
+.led.active-step {
+  background: var(--accent-cyan);
+  box-shadow: inset 0 0 2px rgba(255,255,255,0.5), 0 0 10px var(--accent-cyan), 0 0 20px rgba(0,229,255,0.4);
+  border-color: #84ffff;
+}
+
+.led-index {
+  font-size: 10px;
+  color: #444;
+}
+
+/* Oscillator Strip */
+.oscillator-strip {
+  background: #1a1a1a;
+  border: 1px solid #333;
+  border-radius: 12px;
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.strip-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 1px dashed #333;
+  padding-bottom: 12px;
+}
+
+.strip-content {
+  display: grid;
+  grid-template-columns: 250px 1fr;
+  gap: 24px;
+}
+
+.control-groups {
+  display: flex;
+  gap: 24px;
+  flex-wrap: wrap;
+}
+
+.control-group {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  background: #111;
+  padding: 16px;
+  border-radius: 8px;
+  border: 1px solid #222;
+}
+
+.group-title {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 1.5px;
+  color: #666;
+  border-bottom: 1px solid #222;
+  padding-bottom: 6px;
+}
+
+.group-knobs {
+  display: flex;
+  gap: 16px;
+}
+
+.select-input {
+  background: #222;
+  color: var(--text-main);
+  border: 1px solid #444;
+  padding: 8px 12px;
+  border-radius: 6px;
+  font-size: 13px;
+  outline: none;
+  cursor: pointer;
+  transition: border-color 0.2s;
+}
+
+.select-input:hover {
+  border-color: var(--accent-cyan);
+}
+
+canvas {
+  background: #080808;
+  border-radius: 8px;
+  border: 1px solid #2a2a2a;
+  width: 100%;
+  height: 120px;
+  box-shadow: inset 0 5px 15px rgba(0,0,0,0.5);
+}
+
+.btn {
+  background: #333;
+  color: #fff;
+  border: none;
+  padding: 10px 24px;
+  border-radius: 6px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.btn:hover {
+  background: #444;
+}
+
+.btn.primary {
+  background: var(--accent-cyan);
+  color: #000;
+}
+
+.btn.primary:hover {
+  background: #18ffff;
+  box-shadow: 0 0 15px rgba(0,229,255,0.4);
+}
