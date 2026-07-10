@@ -38,6 +38,8 @@ export class OscillatorVoice {
   envelope: EnvelopeOptions = { attack: 0.1, decay: 0.3, sustain: 0.5, release: 2.0 };
   automation: AutomationOptions = { enabled: false, target: 'filter', waveform: 'sine', rate: 0.5, depth: 1000 };
   volume: number = 0.5;
+  private filterMultiplier = 1;
+  private volumeMultiplier = 1;
 
   constructor(ctx: AudioContext, destination: AudioNode) {
     this.ctx = ctx;
@@ -58,7 +60,7 @@ export class OscillatorVoice {
     this.filterResonance = resonance;
     if (this.activeNodes) {
       this.activeNodes.filter.type = type;
-      this.activeNodes.filter.frequency.setTargetAtTime(cutoff, this.ctx.currentTime, 0.1);
+      this.activeNodes.filter.frequency.setTargetAtTime(cutoff * this.filterMultiplier, this.ctx.currentTime, 0.1);
       this.activeNodes.filter.Q.setTargetAtTime(resonance, this.ctx.currentTime, 0.1);
     }
   }
@@ -72,7 +74,15 @@ export class OscillatorVoice {
   }
   setVolume(vol: number) {
     this.volume = vol;
-    this.output.gain.setTargetAtTime(vol, this.ctx.currentTime, 0.1);
+    this.output.gain.setTargetAtTime(vol * this.volumeMultiplier, this.ctx.currentTime, 0.1);
+  }
+  setConductorModulation(filterMultiplier: number, volumeMultiplier: number) {
+    this.filterMultiplier = filterMultiplier;
+    this.volumeMultiplier = volumeMultiplier;
+    this.output.gain.setTargetAtTime(this.volume * volumeMultiplier, this.ctx.currentTime, 0.25);
+    if (this.activeNodes) {
+      this.activeNodes.filter.frequency.setTargetAtTime(this.filterCutoff * filterMultiplier, this.ctx.currentTime, 0.25);
+    }
   }
 
   triggerAttack(frequency: number, time: number = this.ctx.currentTime) {
@@ -89,7 +99,7 @@ export class OscillatorVoice {
     osc.frequency.value = frequency;
 
     filter.type = this.filterType;
-    filter.frequency.value = this.filterCutoff;
+    filter.frequency.value = this.filterCutoff * this.filterMultiplier;
     filter.Q.value = this.filterResonance;
 
     // Envelope

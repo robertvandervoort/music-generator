@@ -1,0 +1,25 @@
+services:
+  music-generator:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: music-generator:web
+    container_name: music-generator
+    restart: unless-stopped
+    expose:
+      - "80"
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
+    networks:
+      - default
+      - vdv-shared-network
+
+networks:
+  default:
+    driver: bridge
+  vdv-shared-network:
+    name: vdv-website-network
+    external: true

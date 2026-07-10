@@ -17,21 +17,31 @@ export const SCALES: Record<string, number[]> = {
 
 export class Quantizer {
   scale: number[];
+  scaleName: string;
   rootNote: number; // MIDI note number, e.g. 60 for C4
 
   constructor(scaleName: string = 'Minor Pentatonic', rootNote: number = 60) {
+    this.scaleName = SCALES[scaleName] ? scaleName : 'Minor Pentatonic';
     this.scale = SCALES[scaleName] || SCALES['Minor Pentatonic'];
     this.rootNote = rootNote;
   }
 
   setScale(scaleName: string) {
     if (SCALES[scaleName]) {
+      this.scaleName = scaleName;
       this.scale = SCALES[scaleName];
     }
   }
 
   setRoot(rootNote: number) {
     this.rootNote = rootNote;
+  }
+
+  getScaleFrequency(degree: number, octaveOffset: number = 0): number {
+    const wrappedDegree = ((degree % this.scale.length) + this.scale.length) % this.scale.length;
+    const scaleOctave = Math.floor(degree / this.scale.length);
+    const midiNote = this.rootNote + ((octaveOffset + scaleOctave) * 12) + this.scale[wrappedDegree];
+    return 440 * Math.pow(2, (midiNote - 69) / 12);
   }
 
   // Maps a value (0 to 1) to a quantized frequency

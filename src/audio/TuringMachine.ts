@@ -1,13 +1,23 @@
+import { Rng } from './Rng';
+
 export class TuringMachine {
   register: boolean[];
   length: number;
   probability: number; // 0 to 1
 
-  constructor(length: number = 16) {
+  private rng: Rng;
+
+  constructor(length: number = 16, rng: Rng = new Rng(Rng.randomSeed())) {
     this.length = length;
+    this.rng = rng;
     // Initialize with random bits
-    this.register = Array.from({ length }, () => Math.random() > 0.5);
+    this.register = Array.from({ length }, () => this.rng.chance(0.5));
     this.probability = 0.1; // Default to slow morphing
+  }
+
+  reset(rng: Rng) {
+    this.rng = rng;
+    this.register = Array.from({ length: this.length }, () => this.rng.chance(0.5));
   }
 
   setProbability(prob: number) {
@@ -24,7 +34,7 @@ export class TuringMachine {
     
     // Determine new first bit based on probability
     let newBit = outputBit; // By default, loop perfectly
-    if (Math.random() < this.probability) {
+    if (this.rng.chance(this.probability)) {
       newBit = !newBit; // Flip the bit
     }
     
