@@ -1,6 +1,6 @@
 # MVP Test Criteria
 
-Last updated: 2026-07-10 16:54:14 CDT
+Last updated: 2026-07-10 16:57:47 CDT
 
 ## Containerized Deployment
 
@@ -12,9 +12,9 @@ Last updated: 2026-07-10 16:54:14 CDT
 - `cloudflared` can target `http://music-generator:80` over Docker DNS.
 
 ### Test Coverage Checklist
-- [ ] `docker compose up -d --build` starts `music-generator` successfully.
-- [ ] `docker run --rm --network vdv-website-network curlimages/curl:8.8.0 -sI http://music-generator:80` returns `HTTP/1.1 200 OK`.
-- [ ] Existing `cloudflared` container is connected to `vdv-website-network`.
+- [x] `docker compose up -d --build` starts `music-generator` successfully.
+- [x] `docker run --rm --network vdv-website-network curlimages/curl:8.8.0 -sI http://music-generator:80` returns `HTTP/1.1 200 OK`.
+- [x] Existing `cloudflared` container is connected to `vdv-website-network`.
 - [ ] Cloudflared tunnel routes to `http://music-generator:80`.
 
 ## Automated Validation
