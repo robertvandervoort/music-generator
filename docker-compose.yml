@@ -3,6 +3,8 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+      args:
+        VITE_RUM_SAMPLE_RATE: ${VITE_RUM_SAMPLE_RATE:-1}
     image: music-generator:web
     container_name: music-generator
     restart: unless-stopped
