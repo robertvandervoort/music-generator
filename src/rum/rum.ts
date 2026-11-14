@@ -2,17 +2,18 @@ import {
   clipErrorMessage,
   countryFromMeta,
   ctaActionFromLabel,
+  ctaSpanName,
   isDoNotTrack,
   referrerHost,
   regionFromMeta,
   resolveSampleRate,
   routeFromLocation,
+  rumTracesUrl,
   sampledIn,
   utmValue,
 } from './context.ts';
 import { buildTracePayload, randomHex, type OtlpSpan } from './otlp.ts';
 
-const ENDPOINT = '/rum/trace';
 const BATCH_MS = import.meta.env.DEV ? 400 : 10_000;
 const MAX_BODY_BYTES = 48_000;
 const MAX_JS_ERRORS = 20;
@@ -27,16 +28,6 @@ const storageKeys = {
   utmCampaign: 'tm.rum.utm_campaign',
   landing: 'tm.rum.landing_route',
 } as const;
-
-interface FetchLaterResult {
-  readonly activated: boolean;
-}
-
-interface FetchLaterInit extends RequestInit {
-  activateAfter?: number;
-}
-
-type FetchLaterFn = (input: RequestInfo | URL, init?: FetchLaterInit) => FetchLaterResult;
 
 interface SessionFields {
   id: string;
@@ -61,12 +52,7 @@ let session: SessionFields | null = null;
 let engagementSpan: OtlpSpan | null = null;
 let engagementOrigin = 0;
 let errorCount = 0;
-let deadline = 0;
-let debounceTimer: ReturnType<typeof setTimeout> | undefined;
 let flushTimer: ReturnType<typeof setTimeout> | undefined;
-let pending: FetchLaterResult | null = null;
-let controller: AbortController | null = null;
-let inflight: OtlpSpan[] = [];
 
 function sessionGet(key: string): string | null {
   try {
@@ -205,7 +191,7 @@ function rotateEngagement(): void {
 }
 
 function isPendingSpan(span: OtlpSpan | null): span is OtlpSpan {
-  return !!span && (queue.includes(span) || inflight.includes(span));
+  return !!span && queue.includes(span);
 }
 
 function syncEngagement(): void {
@@ -248,7 +234,7 @@ function upsertVital(name: 'LCP' | 'CLS' | 'INP', value: number): void {
     existing.attributes['rum.vital_value'] = rendered;
     existing.attributes['rum.vital_rating'] = vitalRating(name, value);
     existing.endTimeUnixNano = nowUnixNano();
-    scheduleSoon();
+    armFlush();
     return;
   }
   if (lastSentVital.get(name) === rendered) return;
@@ -259,7 +245,7 @@ function upsertVital(name: 'LCP' | 'CLS' | 'INP', value: number): void {
   });
   vitalSpans.set(name, span);
   queue.push(span);
-  scheduleSoon();
+  armFlush();
 }
 
 function interactionPaint(durations: number[]): number {
@@ -269,51 +255,39 @@ function interactionPaint(durations: number[]): number {
   return sorted[index] ?? 0;
 }
 
-function installFetchLater(): FetchLaterFn {
-  const scope = globalThis as typeof globalThis & { fetchLater?: FetchLaterFn };
-  if (typeof scope.fetchLater === 'function') return scope.fetchLater;
-  const polyfill: FetchLaterFn = (input, init = {}) => {
-    let timeoutHandle: ReturnType<typeof setTimeout> | undefined;
-    let activated = false;
-    const destroy = () => {
-      document.removeEventListener('visibilitychange', sendNow);
-      if (timeoutHandle !== undefined) clearTimeout(timeoutHandle);
-    };
-    const sendNow = () => {
-      if (!(init.signal && init.signal.aborted)) {
-        const method = init.method ?? 'GET';
-        if ('keepalive' in Request.prototype || method !== 'POST' || init.headers) {
-          void fetch(input, { ...init, keepalive: true }).catch(() => undefined);
-          activated = true;
-        } else {
-          const body = init.body;
-          activated = (typeof body === 'string' || body instanceof Blob)
-            && navigator.sendBeacon(String(input), body);
-        }
-      }
-      destroy();
-    };
-    if (document.visibilityState === 'hidden') {
-      queueMicrotask(sendNow);
-    } else {
-      document.addEventListener('visibilitychange', sendNow);
-      if (typeof init.activateAfter === 'number' && init.activateAfter >= 0) {
-        timeoutHandle = setTimeout(sendNow, init.activateAfter);
-      }
-    }
-    init.signal?.addEventListener('abort', destroy, { once: true });
-    return {
-      get activated() {
-        return activated;
-      },
-    };
-  };
-  scope.fetchLater = polyfill;
-  return polyfill;
+function postTraces(body: string): void {
+  void fetch(rumTracesUrl(import.meta.env.VITE_RUM_TRACES_URL), {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body,
+    keepalive: true,
+    mode: 'cors',
+    credentials: 'omit',
+  }).catch(() => undefined);
 }
 
-function commitInflight(): void {
-  for (const span of inflight) {
+function flushQueue(): void {
+  if (flushTimer !== undefined) {
+    clearTimeout(flushTimer);
+    flushTimer = undefined;
+  }
+  if (!trackingAllowed()) {
+    queue.length = 0;
+    return;
+  }
+  syncEngagement();
+  if (queue.length === 0 || !session) return;
+  let spans = queue.slice();
+  let body = buildTracePayload(session.traceId, spans);
+  while (body.length > MAX_BODY_BYTES && spans.length > 1) {
+    spans = spans.slice(0, -1);
+    body = buildTracePayload(session.traceId, spans);
+  }
+  const sending = new Set(spans);
+  for (let index = queue.length - 1; index >= 0; index -= 1) {
+    if (sending.has(queue[index])) queue.splice(index, 1);
+  }
+  for (const span of spans) {
     if (span === engagementSpan) rotateEngagement();
     if (span.name === 'rum.web_vital') {
       const name = span.attributes['rum.vital_name'];
@@ -321,100 +295,20 @@ function commitInflight(): void {
       if (name && value) lastSentVital.set(name, value);
     }
   }
-  inflight = [];
-  pending = null;
-  controller = null;
-  deadline = 0;
+  postTraces(body);
+  if (queue.length > 0) armFlush();
 }
 
-function restoreInflight(): void {
-  if (controller) controller.abort();
-  for (let index = inflight.length - 1; index >= 0; index -= 1) {
-    const span = inflight[index];
-    if (!queue.includes(span)) queue.unshift(span);
-  }
-  inflight = [];
-  pending = null;
-  controller = null;
-}
-
-function settleInflight(): void {
-  if (inflight.length === 0) return;
-  if (pending?.activated) commitInflight();
-  else restoreInflight();
-}
-
-function scheduleNow(): void {
-  if (!trackingAllowed()) {
-    queue.length = 0;
-    inflight = [];
-    deadline = 0;
+function armFlush(): void {
+  if (document.visibilityState === 'hidden') {
+    flushQueue();
     return;
   }
-  settleInflight();
-  syncEngagement();
-  if (queue.length === 0 || !session) {
-    if (queue.length === 0) deadline = 0;
-    return;
-  }
-  const hidden = document.visibilityState === 'hidden';
-  if (deadline === 0) deadline = Date.now() + (hidden ? 0 : BATCH_MS);
-  const wait = hidden ? 0 : Math.max(0, deadline - Date.now());
-  let spans = queue.slice();
-  let body = buildTracePayload(session.traceId, spans);
-  while (body.length > MAX_BODY_BYTES && spans.length > 1) {
-    spans = spans.slice(0, -1);
-    body = buildTracePayload(session.traceId, spans);
-  }
-  inflight = spans;
-  for (const span of inflight) {
-    const index = queue.indexOf(span);
-    if (index >= 0) queue.splice(index, 1);
-  }
-  controller = new AbortController();
-  try {
-    pending = installFetchLater()(ENDPOINT, {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body,
-      credentials: 'omit',
-      keepalive: true,
-      signal: controller.signal,
-      activateAfter: wait,
-    });
-  } catch {
-    restoreInflight();
-    return;
-  }
-  if (flushTimer !== undefined) clearTimeout(flushTimer);
+  if (flushTimer !== undefined) return;
   flushTimer = setTimeout(() => {
     flushTimer = undefined;
-    if (pending?.activated) {
-      commitInflight();
-      if (queue.length > 0) scheduleSoon();
-    }
-  }, wait + 50);
-  if (hidden) {
-    queueMicrotask(() => {
-      if (!pending?.activated) return;
-      commitInflight();
-      if (queue.length > 0) scheduleSoon();
-    });
-  }
-}
-
-function scheduleSoon(): void {
-  if (document.visibilityState === 'hidden') {
-    if (debounceTimer !== undefined) clearTimeout(debounceTimer);
-    debounceTimer = undefined;
-    scheduleNow();
-    return;
-  }
-  if (debounceTimer !== undefined) return;
-  debounceTimer = setTimeout(() => {
-    debounceTimer = undefined;
-    scheduleNow();
-  }, 200);
+    flushQueue();
+  }, BATCH_MS);
 }
 
 function reportJsError(type: string, message: string): void {
@@ -424,7 +318,7 @@ function reportJsError(type: string, message: string): void {
     'exception.type': type.slice(0, 80) || 'Error',
     'exception.message': clipErrorMessage(message),
   }, 2));
-  scheduleSoon();
+  armFlush();
 }
 
 function installErrors(): void {
@@ -504,7 +398,7 @@ function installRouteChanges(): void {
     rotateEngagement();
     route = next;
     queue.push(makeSpan('page_view', { 'rum.navigation': 'route_change' }));
-    scheduleSoon();
+    armFlush();
   };
   window.addEventListener('popstate', emit);
   window.addEventListener('hashchange', emit);
@@ -527,27 +421,24 @@ function installCtas(): void {
     const label = `${control.getAttribute('aria-label') ?? ''} ${control.textContent ?? ''}`;
     const action = ctaActionFromLabel(label);
     if (!action) return;
-    queue.push(makeSpan('rum.cta_event', { 'rum.cta_name': action }));
-    scheduleSoon();
+    queue.push(makeSpan(ctaSpanName(action), { 'rum.cta_name': action }));
+    armFlush();
   }, true);
 }
 
 function installEngagement(): void {
   const flushHidden = () => {
     if (document.visibilityState !== 'hidden') return;
-    syncEngagement();
-    scheduleNow();
+    flushQueue();
   };
   document.addEventListener('visibilitychange', flushHidden);
   window.addEventListener('pagehide', () => {
-    syncEngagement();
-    scheduleNow();
+    flushQueue();
   });
   window.setInterval(() => {
     if (document.visibilityState !== 'visible') return;
-    if (pending?.activated) commitInflight();
     syncEngagement();
-    if (queue.length > 0) scheduleSoon();
+    if (queue.length > 0) armFlush();
   }, 15_000);
 }
 
@@ -559,7 +450,7 @@ function startRum(): void {
   session = captureSession(route);
   engagementOrigin = foregroundMillis();
   queue.push(makeSpan('page_view', { 'rum.navigation': 'load' }));
-  scheduleSoon();
+  armFlush();
   installVitals();
   installErrors();
   installEngagement();

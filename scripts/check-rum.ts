@@ -4,11 +4,14 @@ import {
   clipErrorMessage,
   countryFromMeta,
   ctaActionFromLabel,
+  ctaSpanName,
+  DEFAULT_RUM_TRACES_URL,
   isDoNotTrack,
   referrerHost,
   regionFromMeta,
   resolveSampleRate,
   routeFromLocation,
+  rumTracesUrl,
   sampledIn,
   utmValue,
 } from '../src/rum/context.ts';
@@ -60,13 +63,18 @@ assert.equal(isDoNotTrack(['yes']), true);
 assert.equal(isDoNotTrack(['0', null]), false);
 assert.equal(isDoNotTrack([undefined]), false);
 
-assert.equal(ctaActionFromLabel('START'), 'play');
-assert.equal(ctaActionFromLabel('Play preview'), 'play');
-assert.equal(ctaActionFromLabel('Export all'), 'download');
-assert.equal(ctaActionFromLabel('Download mix'), 'download');
+assert.equal(ctaActionFromLabel('START'), 'start');
+assert.equal(ctaActionFromLabel('Play preview'), 'start');
+assert.equal(ctaActionFromLabel('Export all'), 'export');
+assert.equal(ctaActionFromLabel('Download mix'), 'export');
 assert.equal(ctaActionFromLabel('Generate'), 'generate');
 assert.equal(ctaActionFromLabel('Generative'), null);
 assert.equal(ctaActionFromLabel('STOP'), null);
+assert.equal(ctaSpanName('start'), 'rum.cta_start');
+assert.equal(ctaSpanName('export'), 'rum.cta_export');
+assert.equal(rumTracesUrl(undefined), DEFAULT_RUM_TRACES_URL);
+assert.equal(rumTracesUrl('  '), DEFAULT_RUM_TRACES_URL);
+assert.equal(rumTracesUrl(' https://example.test/rum/v1/traces '), 'https://example.test/rum/v1/traces');
 assert.equal(clipErrorMessage(`  ${'x'.repeat(200)}  `).length, 160);
 
 const traceId = randomHex(16);
@@ -108,10 +116,9 @@ assert.match(index, /name="cf-country" content="__CF_COUNTRY__"/);
 assert.match(index, /name="cf-region" content="__CF_REGION__"/);
 assert.match(nginx, /sub_filter '__CF_COUNTRY__' '\$rum_cf_country'/);
 assert.match(nginx, /sub_filter '__CF_REGION__' '\$rum_cf_region'/);
-assert.match(nginx, /location = \/rum\/trace/);
-assert.match(nginx, /client_max_body_size 64k/);
-assert.match(nginx, /proxy_pass http:\/\/\$otel_host:4318\/v1\/traces/);
-assert.match(nginx, /otel-collector/);
+assert.equal(nginx.includes('/rum/trace'), false);
+assert.equal(nginx.includes('proxy_pass'), false);
+assert.equal(nginx.includes('otel-collector'), false);
 assert.match(nginx, /"request_time":\$request_time/);
 assert.match(nginx, /"referer":"\$http_referer"/);
 assert.match(nginx, /"cf_country":"\$http_cf_ipcountry"/);

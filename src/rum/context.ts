@@ -6,7 +6,18 @@ const AI_REFERRER_HOSTS = [
   'claude.ai',
 ] as const;
 
-export type CtaAction = 'generate' | 'play' | 'download';
+export const DEFAULT_RUM_TRACES_URL = 'https://vdvlabs.ai/rum/v1/traces';
+
+export type CtaAction = 'start' | 'export' | 'generate';
+
+export function rumTracesUrl(raw: string | undefined): string {
+  const value = raw?.trim();
+  return value || DEFAULT_RUM_TRACES_URL;
+}
+
+export function ctaSpanName(action: CtaAction): string {
+  return `rum.cta_${action}`;
+}
 
 export function referrerHost(referrer: string, pageHostname: string): string {
   if (!referrer) return 'direct';
@@ -89,8 +100,8 @@ export function isDoNotTrack(signals: Array<string | null | undefined>): boolean
 export function ctaActionFromLabel(label: string): CtaAction | null {
   const text = label.trim().toLowerCase();
   if (/\bgenerate\b/.test(text)) return 'generate';
-  if (/\b(?:download|export)\b/.test(text)) return 'download';
-  if (/\b(?:play|start)\b/.test(text)) return 'play';
+  if (/\b(?:download|export)\b/.test(text)) return 'export';
+  if (/\b(?:play|start)\b/.test(text)) return 'start';
   return null;
 }
 
