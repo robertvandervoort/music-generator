@@ -5,6 +5,10 @@ COPY package.json package-lock.json ./
 RUN npm ci --no-audit --no-fund
 
 COPY . .
+ARG VITE_RUM_SAMPLE_RATE=1
+ARG VITE_RUM_TRACES_URL=https://vdvlabs.ai/rum/v1/traces
+ENV VITE_RUM_SAMPLE_RATE=$VITE_RUM_SAMPLE_RATE
+ENV VITE_RUM_TRACES_URL=$VITE_RUM_TRACES_URL
 RUN npm run build
 
 FROM nginx:1.27-alpine AS runtime

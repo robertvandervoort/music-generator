@@ -10,7 +10,7 @@ This application uses mathematical algorithms (specifically a Turing Machine shi
 - **Procedural Percussion**: Selectable hand-drum, folk-percussion, tuned idiophone, and ambient-texture kits with Fixed, Euclidean, and Hybrid rhythm modes—no samples required.
 - **Optional Conductor**: Drone, Ballad, Arc, Evolving, and Chaos forms create stable sections, call-and-response, crescendos, and resolutions without taking away manual control.
 - **Reproducible Seeds**: Visible seeds reproduce the machine's musical decisions and arrangement journey.
-- **Device-local Favorites**: Save, describe, search, and reload complete settings in browser local storage. No cookies, server upload, or tracking.
+- **Device-local Favorites**: Save, describe, search, and reload complete settings in browser local storage. Favorites are not uploaded and do not use cookies.
 - **Master FX**: Parallel Delay and Reverb buses.
 - **Interactive UI**: Custom rotary knobs, glowing LED state visualizers, and real-time oscilloscopes.
 
@@ -53,6 +53,18 @@ This project can be served as a production container on a shared Docker network 
 If your `cloudflared` container is managed separately, attach it to the same shared network:
 ```bash
 docker network connect vdv-website-network <your-cloudflared-container-name>
+```
+
+## Browser RUM and visitor country
+
+nginx serves the built site. It writes JSON access logs that keep the referer and add request time plus Cloudflare country, region, and city. `CF-IPCountry` and `cf-region` are written into the `cf-country` and `cf-region` meta tags on each HTML response. The site does not expose a telemetry API.
+
+The browser posts OTLP JSON to `https://vdvlabs.ai/rum/v1/traces` (`VITE_RUM_TRACES_URL` at image build time). The service name is `turingmusic-web-rum`. It records page views (first load and later route changes), foreground engagement, LCP, CLS, INP, JavaScript errors, and Start / Export actions as `rum.cta_start` and `rum.cta_export`. Attributes include route, first-touch referrer hostname (`direct` when there is none), first-touch utm source / medium / campaign (`none` when absent), landing route, country, region, and a session id kept in `sessionStorage`. AI assistant referrals from chatgpt.com, perplexity.ai, gemini.google.com, copilot.microsoft.com, and claude.ai are stored as that hostname. Do Not Track skips collection. Set `VITE_RUM_SAMPLE_RATE` between `0` and `1` at image build time (default `1`).
+
+Page views by source and landing route:
+
+```promql
+sum by (rum_referrer, rum_utm_source, rum_landing_route) (increase(traces_span_metrics_calls_total{service_name="turingmusic-web-rum",span_name="page_view"}[1d]))
 ```
 
 ## License
