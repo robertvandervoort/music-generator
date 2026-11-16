@@ -1,0 +1,19 @@
+# Atmospheric Machine 01
+
+> A web-based digital generative music machine built with React, Vite, and the Web Audio API. It uses mathematical algorithms, specifically a Turing Machine shift register, to create evolving, non-deterministic melodies and soundscapes without AI or machine learning.
+
+## App
+
+- [Atmospheric Machine 01](https://turingmusic.vdvlabs.ai/): Browser app for generative atmospheric music.
+
+## Features
+
+- Turing Sequencer: a 16-bit shift register algorithm with probability controls for morphing sequences
+- Scale Quantizer: more than a dozen selectable scales, including Major, Minor, Dorian, and pentatonics
+- Dual Oscillator Synth: independent Pluck and Pad voices with waveform selection, filter types, ADR envelopes, and LFO automation
+- Procedural Percussion: hand-drum, folk-percussion, tuned idiophone, and ambient-texture kits, with Fixed, Euclidean, and Hybrid rhythm modes, and no samples
+- Optional Conductor: Drone, Ballad, Arc, Evolving, and Chaos forms
+- Reproducible seeds that replay the machine's musical decisions and arrangement journey
+- Device-local Favorites: save, describe, search, and reload complete settings in browser local storage. Favorites are not uploaded and do not use cookies
+- Master FX: parallel Delay and Reverb buses
+- Interactive UI with custom rotary knobs, LED state visualizers, and real-time oscilloscopes
